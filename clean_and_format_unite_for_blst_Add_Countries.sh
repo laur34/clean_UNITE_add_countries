@@ -27,8 +27,8 @@ do
         echo -n "$line"
         F1=$(cut -f1 -d"|" <<< "$line")
         FUNGAL_SPECIES=$(echo "$F1" | cut -d">" -f 2)
-        grep $FUNGAL_SPECIES fungi_species_countries_grouped.tsv
-        if ! grep -q $FUNGAL_SPECIES fungi_species_countries_grouped.tsv; then
+        egrep "$FUNGAL_SPECIES""\b([^-])" fungi_species_countries_grouped.tsv
+        if ! egrep -q "$FUNGAL_SPECIES""\b([^-])" fungi_species_countries_grouped.tsv; then
             echo
         fi
     else
@@ -47,14 +47,15 @@ do
         echo -n "$line"
         F1=$(cut -f1 -d"|" <<< "$line")
         PLANT_SPECIES=$(echo "$F1" | cut -d">" -f 2)
-        grep -F $PLANT_SPECIES plant_species_countries_grouped.tsv
-        if ! grep -q -F $PLANT_SPECIES plant_species_countries_grouped.tsv; then
+        egrep "$PLANT_SPECIES""\b([^-])" plant_species_countries_grouped.tsv
+        if ! egrep -q "$PLANT_SPECIES""\b([^-])" plant_species_countries_grouped.tsv; then
             echo
         fi
     else
         echo "$line"
     fi
-done > unite_fungal_plant_spp_countries.fasta
+done > unite_fungal_plant_spp_countries.fasta 
+#but empty lines are inserted, at e.g. Leucadendron_diemontianum
 
 #Substitute spaces introduced into fasta headers with pipe symbols:
 sed 's/ /|/' unite_fungal_plant_spp_countries.fasta > unite_fungal_plant_spp_countries.nospc.fasta
@@ -65,16 +66,6 @@ sed -i 's/^>[^|]*|/>/' unite_fungal_plant_spp_countries.nospc.fasta
 ## Replace first pipe with space
 sed 's/|/\t/' unite_fungal_plant_spp_countries.nospc.fasta > unite_fungal_plant_spp_countries.nospc.tab.fasta
 
-###### There is an issue with the second word of species' binomena which begin with "sp", getting shortened to just "sp":
-'''
->KF206482	SH1548969.08FU|reps|k__Fungi;p__Glomeromycota;c__Glomeromycetes;o__Diversisporales;f__Acaulosporaceae;g__Acaulospora;s__Acaulospora_sp|Acaulospora_spinosa|AR
-'''
-##This was caused by the grepping for fungal/plant species names, which gave positive results for e.g. "Acaulospora_sp" in "Acaulospora_spinosa"
-##thereby adding the name and countires of the latter.
-##TODO: Change grepping for species names in order to add country info, to only do the ones with a species binomen (i.e. are not blah_sp). 
-##Acutally that make the loops even more complicated. Maybe it would be better to just delete afterwards the countries from lines containing s__blah_sp|
-#######edit: SOLVED.
-
 #if species|countries, get rid of the species right before countries.
 awk 'BEGIN{FS="|";OFS="|"};{if (NF>=5) {!($4="");print} else{print $0} }' unite_fungal_plant_spp_countries.nospc.tab.fasta > unite_fungal_plant_spp_countries.nospc.tab.34pi.fasta
 #(but that leaves empty field)
@@ -82,9 +73,6 @@ awk 'BEGIN{FS="|";OFS="|"};{if (NF>=5) {!($4="");print} else{print $0} }' unite_
 #if matches ">*|*|*|EOL", add a 4th | before EOL
 awk 'BEGIN{FS="|";OFS="|"};{if (NF==4) {print $1,$2,$3,"|"} else{print $0} }' unite_fungal_plant_spp_countries.nospc.tab.34pi.fasta > unite_fungal_plant_spp_countries.nospc.tab.5plfld.fasta
 
-#if matches "s__*_sp|" then remove all printing characters after ||
-sed -e 's/\(s__[A-Z][a-z]*_sp||\).*$/\1/' unite_fungal_plant_spp_countries.nospc.tab.5plfld.fasta > unite_blastdb.fasta
-
-#mv unite_blastdb.fasta unite_all_cleaned_04_2020_wcountries.fasta
-
+#Remove empty fields (occurrences of double pipes) with only one pipe.
+awk '{gsub(/[|]{2}/,"|")}1' unite_fungal_plant_spp_countries.nospc.tab.5plfld.fasta > unite_all_cleaned_04_2020_wcountries.fasta
 
